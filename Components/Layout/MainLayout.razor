@@ -1,0 +1,249 @@
+﻿    @inherits LayoutComponentBase
+    @using MudBlazor
+    @inject IJSRuntime JSRuntime
+
+    <MudThemeProvider />
+    <MudDialogProvider />
+    <MudSnackbarProvider />
+
+    <div class="@(_isCozyMode ? "cozy-mode" : "normal-mode")">
+        <MudLayout>
+            <MudAppBar Elevation="0" Color="Color.Primary" Class="px-4 app-bar">
+                <MudText Typo="Typo.h6" Class="ml-3 brand-text">HUEQUIZZ</MudText>
+                <MudSpacer />
+                <MudIconButton Icon="@(_isCozyMode ? Icons.Material.Filled.WbSunny : Icons.Material.Filled.Nightlight)"
+                               Color="Color.Inherit" OnClick="@((e) => ToggleCozyMode())" Class="mode-toggle" />
+                <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit" Link="https://github.com/YourRepo" Target="_blank" Class="github-link" />
+            </MudAppBar>
+        
+            <MudMainContent Class="pt-16 px-4">
+                <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+                    @Body
+                </MudContainer>
+            </MudMainContent>
+            <MudPopoverProvider />
+        </MudLayout>
+    </div>
+
+    <style>
+        @("@import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');")
+
+        .brand-text {
+            font-family: 'Righteous', cursive;
+            font-size: 1.8rem;
+            background: linear-gradient(to right, #ff00cc, #3333ff, #00ccff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-fill-color: transparent;
+            background-size: 200% auto;
+            animation: shine 3s linear infinite;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: 1px;
+        }
+
+        @@keyframes shine {
+            to {
+                background-position: 200% center;
+            }
+        }
+
+        .brand-text:hover {
+            animation: pulse 1s infinite;
+        }
+
+        @@keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .mode-toggle, .github-link {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .mode-toggle:hover, .github-link:hover {
+            transform: scale(1.2);
+        }
+
+        .drawer-open {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @@keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        .app-bar {
+            backdrop-filter: blur(10px);
+            background-color: rgba(var(--mud-palette-primary-rgb), 0.8) !important;
+        }
+
+        .normal-mode, .cozy-mode {
+            transition: background 0.5s ease-in-out;
+            background-attachment: fixed;
+            background-size: cover;
+        }
+
+        .normal-mode {
+            background: linear-gradient(45deg, #1a237e, #0d47a1, #01579b);
+        }
+
+        .cozy-mode {
+            background: linear-gradient(45deg, #ff6f00, #f57c00, #ffb300);
+        }
+    </style>
+
+    @code {
+        private bool _drawerOpen = true;
+        private bool _isCozyMode = false;
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                await ApplyNormalMode();
+            }
+        }
+
+        void DrawerToggle() => _drawerOpen = !_drawerOpen;
+
+        async Task ToggleCozyMode()
+        {
+            _isCozyMode = !_isCozyMode;
+            if (_isCozyMode)
+            {
+                await ApplyCozyMode();
+            }
+            else
+            {
+                await ApplyNormalMode();
+            }
+            StateHasChanged();
+        }
+
+        async Task ApplyNormalMode()
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                document.body.style.setProperty('--mud-palette-primary', '#3F51B5');
+                document.body.style.setProperty('--mud-palette-secondary', '#2196F3');
+                document.body.style.setProperty('--mud-palette-surface', 'rgba(255, 255, 255, 0.8)');
+                document.body.style.setProperty('--mud-palette-drawer-background', 'rgba(255, 255, 255, 0.9)');
+                document.body.style.fontFamily = '\'Poppins\', \'Helvetica\', \'Arial\', sans-serif';
+
+                // Create animated stars
+                const stars = 200;
+                let style = '<style>';
+                for (let i = 0; i < stars; i++) {
+                    const size = Math.random() * 3;
+                    style += `
+                        .star:nth-child(${i+1}) {
+                            position: fixed;
+                            z-index: -1;
+                            width: ${size}px;
+                            height: ${size}px;
+                            border-radius: 50%;
+                            background: white;
+                            top: ${Math.random() * 100}%;
+                            left: ${Math.random() * 100}%;
+                            box-shadow: 0 0 ${size * 2}px rgba(255, 255, 255, 0.7);
+                            animation: twinkle ${0.5 + Math.random() * 1.5}s infinite alternate, 
+                                       float ${20 + Math.random() * 10}s infinite ease-in-out;
+                        }
+                    `;
+                }
+                style += `
+                    @keyframes twinkle {
+                        0% { opacity: 0.2; }
+                        100% { opacity: 1; }
+                    }
+                    @keyframes float {
+                        0%, 100% { transform: translateY(0); }
+                        50% { transform: translateY(${Math.random() * 20}px); }
+                    }
+                </style>`;
+                document.head.insertAdjacentHTML('beforeend', style);
+
+                const starsContainer = document.createElement('div');
+                starsContainer.className = 'stars-container';
+                for (let i = 0; i < stars; i++) {
+                    const star = document.createElement('div');
+                    star.className = 'star';
+                    starsContainer.appendChild(star);
+                }
+                document.body.appendChild(starsContainer);
+            ");
+        }
+
+        async Task ApplyCozyMode()
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                document.body.style.setProperty('--mud-palette-primary', '#FF6F00');
+                document.body.style.setProperty('--mud-palette-secondary', '#FFA000');
+                document.body.style.setProperty('--mud-palette-surface', 'rgba(255, 248, 225, 0.8)');
+                document.body.style.setProperty('--mud-palette-drawer-background', 'rgba(255, 243, 224, 0.9)');
+
+                // Create animated fireflies and floating particles
+                const particles = 100;
+                let style = '<style>';
+                for (let i = 0; i < particles; i++) {
+                    const size = Math.random() * 5;
+                    const isFirefly = Math.random() > 0.7;
+                    style += `
+                        .particle:nth-child(${i+1}) {
+                            position: fixed;
+                            z-index: -1;
+                            width: ${size}px;
+                            height: ${size}px;
+                            border-radius: 50%;
+                            background: ${isFirefly ? '#ffca28' : 'rgba(255, 255, 255, 0.5)'};
+                            top: ${Math.random() * 100}%;
+                            left: ${Math.random() * 100}%;
+                            box-shadow: 0 0 ${isFirefly ? '5px #ffca28' : '0'};
+                            animation: float ${10 + Math.random() * 20}s infinite ease-in-out,
+                                       ${isFirefly ? 'pulse 2s infinite alternate' : ''};
+                        }
+                    `;
+                }
+                style += `
+                    @keyframes float {
+                        0%, 100% { transform: translate(0, 0); }
+                        25% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); }
+                        50% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); }
+                        75% { transform: translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px); }
+                    }
+                    @keyframes pulse {
+                        0% { opacity: 0.2; }
+                        100% { opacity: 1; }
+                    }
+                </style>`;
+                document.head.insertAdjacentHTML('beforeend', style);
+
+                const particlesContainer = document.createElement('div');
+                particlesContainer.className = 'particles-container';
+                for (let i = 0; i < particles; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle';
+                    particlesContainer.appendChild(particle);
+                }
+                document.body.appendChild(particlesContainer);
+
+                // Remove stars if they exist
+                const starsContainer = document.querySelector('.stars-container');
+                if (starsContainer) {
+                    starsContainer.remove();
+                }
+            ");
+        }
+    }

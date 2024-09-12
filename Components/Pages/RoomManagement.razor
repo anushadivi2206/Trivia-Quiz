@@ -1,0 +1,437 @@
+﻿@page "/roommanagement"
+@using Combination.Components
+@using Combination.Services
+@using Combination.Hubs
+@using Combination.Models
+@using MudBlazor
+@inject RoomService RoomService
+@inject NavigationManager NavigationManager
+@using Microsoft.AspNetCore.SignalR.Client
+@rendermode InteractiveServer
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" />
+<MudLayout Class="@(_isDarkMode ? "dark-mode" : "light-mode")">
+    <MudAppBar>
+        <MudText Typo="Typo.h2" Class="color-shift-text">HUEQUIZZ</MudText>
+        <MudSpacer />
+        <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                             Icon="@Icons.Material.Filled.LightMode"
+                             ToggledIcon="@Icons.Material.Filled.DarkMode"
+                             Color="Color.Inherit"
+                             EdgePosition="EdgePosition.End"
+                             ToggledColor="@Color.Inherit"
+                             @onclick="ToggleTheme" />
+    </MudAppBar>
+
+    <div class="bg-container">
+        <div class="blur-overlay"></div>
+        <div class="room-container main-container">
+            <h1 class="title color-shift-text">Room Manager</h1>
+            <p class="subtitle">Join or create a room to play with friends</p>
+
+            @if (string.IsNullOrEmpty(CurrentGamePin))
+            {
+                <div class="input-container">
+                    <MudTextField @bind-Value="PlayerName"
+                                  Label="Your Name"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-4 neon-input"
+                                  FullWidth="true" />
+
+                    @if (!JoiningRoom)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" FullWidth="true" OnClick="CreateRoom" Disabled="@string.IsNullOrWhiteSpace(PlayerName)" Class="py-2 rounded-lg neon-button create-button mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                            Create Room
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="@(() => JoiningRoom = true)" Disabled="@string.IsNullOrWhiteSpace(PlayerName)" Class="py-2 rounded-lg neon-button join-button mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Login" Class="mr-2" />
+                            Join Room
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudTextField @bind-Value="GamePinToJoin"
+                                      Label="Game PIN"
+                                      Variant="Variant.Outlined"
+                                      Class="mb-4 neon-input"
+                                      FullWidth="true"
+                                      MaxLength="6"
+                                      InputType="InputType.Text"
+                                      TextChanged="OnGamePinInput" />
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   FullWidth="true"
+                                   OnClick="JoinRoom"
+                                   Disabled="@string.IsNullOrWhiteSpace(GamePinToJoin)"
+                                   Class="py-2 rounded-lg neon-button join-button-direct mb-2">
+                            Join
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" OnClick="@(() => JoiningRoom = false)" Class="py-2 rounded-lg neon-button">
+                            Back
+                        </MudButton>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="game-pin-container">
+                    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="false" Class="game-pin-title">Game PIN</MudText>
+                    <MudText Typo="Typo.h2" Align="Align.Center" GutterBottom="false" Class="game-pin-value color-shift-text">@CurrentGamePin</MudText>
+                </div>
+                <MudText Typo="Typo.body1" Class="mb-2 bold-text">Your Name: <MudText Color="Color.Info" Class="mb-2">@PlayerName</MudText></MudText>
+                <MudText Typo="Typo.body1" Class="mb-2 bold-text">Players:</MudText>
+                <MudChipSet T="string" Class="mb-4">
+                    @foreach (var member in Members)
+                    {
+                        <MudChip Color="Color.Info" Class="neon-chip">@member.Value</MudChip>
+                    }
+                </MudChipSet>
+                <MudButton Variant="Variant.Outlined" Style="color:white" Color="Color.Error" FullWidth="true" OnClick="LeaveRoom" Class="py-2 rounded-lg neon-button leave-button mb-2">
+                    Leave Room
+                </MudButton>
+                @if (!IsGameStarted && IsRoomCreator)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="StartGame" Class="py-2 rounded-lg neon-button start-button">
+                        Start Game
+                    </MudButton>
+                }
+            }
+        </div>
+    </div>
+</MudLayout>
+
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .bg-container {
+        background-size: cover;
+        background-position: center;
+        background-image: url('/images/walls.jpg');
+        background-attachment: fixed;
+        height: 100vh;
+        width: 100vw;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        transition: background-color 0.3s ease;
+    }
+
+    .blur-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .room-container {
+        text-align: center;
+        padding: 2rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .main-container {
+        border-radius: 16px;
+        max-width: 500px;
+        width: 90%;
+        margin: auto;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: float 6s ease-in-out infinite;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .color-shift-text {
+        font-weight: bold;
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+        animation: color-shift 8s infinite alternate, bounce 2s ease-in-out infinite;
+    }
+
+    .subtitle {
+        font-size: 1.2rem;
+        color: inherit;
+        margin-bottom: 2rem;
+    }
+
+    .input-container {
+        margin-bottom: 1rem;
+    }
+
+    .neon-input {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: inherit;
+        transition: all 0.3s ease;
+    }
+
+        .neon-input:hover, .neon-input:focus {
+            border-color: #ff00de;
+            box-shadow: 0 0 10px rgba(255, 0, 222, 0.5);
+        }
+
+    .neon-button {
+        background: transparent;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .leave-button {
+        background-color: rgba(244, 67, 54, 0.1) !important;
+        color: white !important;
+        border: 2px solid #f44336 !important;
+        transition: all 0.3s ease;
+    }
+
+        .leave-button:hover {
+            background-color: #f44336 !important;
+            color: white !important;
+            box-shadow: 0 0 20px rgba(244, 67, 54, 0.8), 0 0 40px rgba(244, 67, 54, 0.6);
+        }
+
+    .neon-button:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0 20px rgba(255, 0, 222, 0.8), 0 0 40px rgba(255, 0, 222, 0.6);
+    }
+
+    .create-button {
+        background-color: #E91E63 !important;
+    }
+
+    .join-button, .start-button {
+        background-color: #2196F3 !important;
+    }
+
+    .leave-button {
+        background-color: #f44336 !important;
+        color: white;
+    }
+
+    .join-button-direct {
+        background-color: #4CAF50 !important;
+        color: white !important;
+    }
+
+    .game-pin-container {
+        margin-bottom: 2rem;
+    }
+
+    .game-pin-title {
+        font-size: 1.5rem;
+        color: inherit;
+    }
+
+    .game-pin-value {
+        font-size: 3rem;
+        letter-spacing: 0.2em;
+    }
+
+    .neon-chip {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+
+        .neon-chip:hover {
+            background: rgba(255, 0, 222, 0.2);
+            box-shadow: 0 0 10px rgba(255, 0, 222, 0.5);
+        }
+
+    .light-mode .bg-container {
+        background-color: #f0f0f0;
+        color: #333;
+    }
+
+    .dark-mode .bg-container {
+        background-color: #333;
+        color: #f0f0f0;
+    }
+
+    .light-mode .main-container {
+        background-color: rgba(255, 255, 255, 0.8);
+        color: #333;
+    }
+
+    .dark-mode .main-container {
+        background-color: rgba(50, 50, 50, 0.8);
+        color: #f0f0f0;
+    }
+
+    @@keyframes color-shift {
+        0% {
+            color: #ff6b6b;
+        }
+
+        25% {
+            color: #4ecdc4;
+        }
+
+        50% {
+            color: #45b7d1;
+        }
+
+        75% {
+            color: #6ab04c;
+        }
+
+        100% {
+            color: #f9ca24;
+        }
+    }
+
+    @@keyframes bounce {
+        0%, 100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    @@keyframes float {
+        0% {
+            transform: translatey(0px);
+        }
+
+        50% {
+            transform: translatey(-20px);
+        }
+
+        100% {
+            transform: translatey(0px);
+        }
+    }
+</style>
+
+@code {
+    private bool _isDarkMode = false;
+    private string CurrentGamePin { get; set; }
+    private string PlayerName { get; set; }
+    private Dictionary<string, string> Members { get; set; } = new Dictionary<string, string>();
+    private string GamePinToJoin { get; set; }
+    private HubConnection hubConnection;
+    private bool IsGameStarted { get; set; } = false;
+    private bool JoiningRoom { get; set; } = false;
+    private bool IsRoomCreator { get; set; } = false;
+    private bool PlayerNamePlaceholderVisible { get; set; } = true;
+    private bool GamePinPlaceholderVisible { get; set; } = true;
+    private string PlayerNamePlaceholder => PlayerNamePlaceholderVisible ? "Enter Your Name" : "";
+    private string GamePinPlaceholder => GamePinPlaceholderVisible ? "Enter Game PIN" : "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/roomHub"))
+            .Build();
+
+        hubConnection.On<Dictionary<string, string>>("ReceiveMembersUpdate", async (members) =>
+        {
+            Members = members;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On("StartGame", async () =>
+        {
+            IsGameStarted = true;
+            await InvokeAsync(() => NavigationManager.NavigateTo($"/categorymultiple?gamePin={CurrentGamePin}&isRoomCreator={IsRoomCreator}"));
+        });
+
+        hubConnection.On("RoomDeleted", async () =>
+        {
+            CurrentGamePin = null;
+            Members.Clear();
+            IsGameStarted = false;
+            IsRoomCreator = false;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private void OnGamePinInput(string value)
+    {
+        if (value.Length > 6)
+        {
+            GamePinToJoin = value.Substring(0, 6);
+        }
+        else
+        {
+            GamePinToJoin = value;
+        }
+    }
+
+    private async Task CreateRoom()
+    {
+        var playerId = Guid.NewGuid().ToString();
+        var (room, _) = RoomService.CreateRoom(playerId, PlayerName);
+        CurrentGamePin = room.GamePin;
+        Members = room.Members;
+        IsGameStarted = false;
+        IsRoomCreator = true;
+        await hubConnection.SendAsync("JoinRoom", CurrentGamePin);
+        await hubConnection.SendAsync("SendMembersUpdate", CurrentGamePin, Members);
+        StateHasChanged();
+    }
+
+    private async Task JoinRoom()
+    {
+        if (!string.IsNullOrEmpty(GamePinToJoin))
+        {
+            var playerId = Guid.NewGuid().ToString();
+            var (success, _) = RoomService.JoinRoom(GamePinToJoin, playerId, PlayerName);
+            if (success)
+            {
+                CurrentGamePin = GamePinToJoin;
+                Members = RoomService.GetRoom(CurrentGamePin).Members;
+                IsGameStarted = false;
+                IsRoomCreator = false;
+                await hubConnection.SendAsync("JoinRoom", CurrentGamePin);
+                await hubConnection.SendAsync("SendMembersUpdate", CurrentGamePin, Members);
+                JoiningRoom = false;
+                StateHasChanged();
+            }
+            else
+            {
+                Console.WriteLine("Failed to join room. Room might be full or doesn't exist.");
+            }
+        }
+    }
+
+    private async Task LeaveRoom()
+    {
+        await hubConnection.SendAsync("LeaveRoom", CurrentGamePin, PlayerName);
+        CurrentGamePin = null;
+        Members.Clear();
+        IsGameStarted = false;
+        IsRoomCreator = false;
+        StateHasChanged();
+    }
+
+    private async Task StartGame()
+    {
+        if (IsRoomCreator)
+        {
+            await hubConnection.SendAsync("StartGame", CurrentGamePin);
+        }
+    }
+}

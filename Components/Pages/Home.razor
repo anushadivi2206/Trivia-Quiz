@@ -1,0 +1,250 @@
+﻿    @page "/"
+    @inject NavigationManager NavigationManager
+    @inject ISnackbar Snackbar
+    @inject QuestionService QuestionService
+    @rendermode InteractiveServer
+    @using Combination.Models
+    
+    <MudThemeProvider @bind-IsDarkMode="@_isDarkMode" />
+    <MudLayout Class="@(_isDarkMode ? "dark-mode" : "light-mode")">
+        <MudAppBar>
+            <MudText Typo="Typo.h2" Class="color-shift-text">HUEQUIZZ</MudText>
+            <MudSpacer />
+            <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                                 Icon="@Icons.Material.Filled.LightMode"
+                                 ToggledIcon="@Icons.Material.Filled.DarkMode"
+                                 Color="Color.Inherit"
+                                 EdgePosition="EdgePosition.End"
+                                 ToggledColor="@Color.Inherit"
+                                 @onclick="ToggleTheme" />
+            
+        </MudAppBar>
+        <div class="bg-container">
+            <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+                <MudPaper Elevation="3" Class="pa-8 main-container">
+                    <MudText Typo="Typo.h2" Align="Align.Center" Class="mb-8 animate-text">
+                        Trivia Quiz Game
+                    </MudText>
+
+                    <MudCard Elevation="0" Class="mb-8 how-to-play">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h5" Color="Color.Secondary">How to Play:</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <div class="d-flex align-center mb-4">
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" Class="mr-3" />
+                                <MudText>Answer multiple-choice questions on various topics.</MudText>
+                            </div>
+                            <div class="d-flex align-center mb-4">
+                                <MudIcon Icon="@Icons.Material.Filled.Timer" Color="Color.Warning" Class="mr-3" />
+                                <MudText>You have 30 seconds to answer each question.</MudText>
+                            </div>
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.Star" Color="Color.Info" Class="mr-3" />
+                                <MudText>Earn points for correct answers and try to beat your high score!</MudText>
+                            </div>
+                        </MudCardContent>
+                    </MudCard>
+
+                    <MudGrid Justify="Justify.Center" Spacing="6">
+                        <MudItem>
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large"
+                                       Href="/component" StartIcon="@Icons.Material.Filled.PlayArrow">
+                                Start Game
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudContainer>
+        </div>
+    </MudLayout>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .color-shift-text {
+            font-weight: bold;
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+            animation: color-shift 8s infinite alternate, bounce 2s ease-in-out infinite;
+        }
+
+        @@keyframes color-shift {
+            0% {
+                color: #ff6b6b;
+            }
+
+            25% {
+                color: #4ecdc4;
+            }
+
+            50% {
+                color: #45b7d1;
+            }
+
+            75% {
+                color: #6ab04c;
+            }
+
+            100% {
+                color: #f9ca24;
+            }
+        }
+
+        @@keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .light-mode .color-shift-text {
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .dark-mode .color-shift-text {
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.1);
+        }
+
+        .bg-container {
+            background-size: cover;
+            background-position: center;
+            background-image: url('/images/walls.jpg');
+            background-attachment: fixed;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            transition: background-color 0.3s ease;
+        }
+
+        .light-mode .bg-container {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .dark-mode .bg-container {
+            background-color: #333;
+            color: #f0f0f0;
+        }
+
+        .main-container {
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            margin: auto;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            animation: float 6s ease-in-out infinite;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .light-mode .main-container {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: #333;
+        }
+
+        .dark-mode .main-container {
+            background-color: rgba(50, 50, 50, 0.8);
+            color: #f0f0f0;
+        }
+
+        @@keyframes float {
+            0% {
+                transform: translatey(0px);
+            }
+
+            50% {
+                transform: translatey(-20px);
+            }
+
+            100% {
+                transform: translatey(0px);
+            }
+        }
+
+        .animate-text {
+            background: linear-gradient(to right, #ff6b6b, #4ecdc4, #45b7d1, #6ab04c, #f9ca24);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: rainbow 8s ease infinite;
+            background-size: 400% 100%;
+            font-weight: bold;
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .how-to-play {
+            border-radius: 8px;
+            transition: transform 0.3s ease-in-out, background-color 0.3s ease;
+        }
+
+        .light-mode .how-to-play {
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+
+        .dark-mode .how-to-play {
+            background-color: rgba(70, 70, 70, 0.7);
+        }
+
+        .how-to-play:hover {
+            transform: translateY(-5px);
+        }
+
+        @@keyframes rainbow {
+            0%, 100% {
+                background-position: 0 0;
+            }
+
+            50% {
+                background-position: 100% 0;
+            }
+        }
+    </style>
+
+    @code {
+        private bool _isDarkMode = false;
+
+        private void ToggleTheme()
+        {
+            _isDarkMode = !_isDarkMode;
+        }
+
+
+        private void OpenGitSettings()
+        {
+            Snackbar.Add("Git settings not implemented yet", Severity.Info);
+        }
+
+        private async Task FetchQuestion()
+        {
+            Console.WriteLine("Clicked");
+            var ques = new Models.Question1
+                {
+                    Category = "Sample",
+                    Subcategory = "Test",
+                    Text = "What is the capital of France?",
+                    Options = new List<string> { "London", "Paris", "Berlin", "Madrid" },
+                    CorrectAnswer = "Paris"
+                };
+
+            // await QuestionService.CreateAsync(ques);
+            var res = await QuestionService.GetAsync();
+            Console.WriteLine("res.Count");
+            Console.WriteLine(res.Count);
+        }
+    }

@@ -1,0 +1,466 @@
+﻿@page "/categorymultiple"
+@using MudBlazor
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+@using Combination.Services
+@using Combination.Models
+@inject NavigationManager NavigationManager
+@inject QuestionService QuestionService
+@inject IJSRuntime JSRuntime
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+@using Microsoft.JSInterop
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" />
+<MudLayout Class="@(_isDarkMode ? "dark-mode" : "light-mode")">
+    <MudAppBar>
+        <div class="navbar-title-container">
+            <MudText Typo="Typo.h3" Class="navbar-title">HUE<span class="quizz-text">QUIZZ</span></MudText>
+        </div>
+        <MudSpacer />
+        <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                             Icon="@Icons.Material.Filled.LightMode"
+                             ToggledIcon="@Icons.Material.Filled.DarkMode"
+                             Color="Color.Inherit"
+                             EdgePosition="EdgePosition.End"
+                             ToggledColor="@Color.Inherit"
+                             @onclick="ToggleTheme" />
+    </MudAppBar>
+
+    <div class="bg-container">
+        <div class="blur-overlay"></div>
+        <div class="quiz-container main-container">
+            <h1 class="title color-shift-text">HueQuizz Categories</h1>
+            <p class="subtitle">Select your trivia realms and embark on a journey of knowledge!</p>
+
+            <MudPaper Elevation="4" Class="pa-6 category-selector">
+                <h2 class="select-text">Choose Your Trivia Realms (Select at least 3)</h2>
+
+                <div class="category-grid">
+                    @foreach (var category in categories)
+                    {
+                        <div class="@($"category-card neon-card {(selectedCategories.Contains(category.Name) ? "selected" : "")} {(!isRoomCreator ? "disabled" : "")}")"
+                             @onclick="() => ToggleCategory(category.Name)">
+                            <div class="card-content">
+                                <i class="@category.Icon"></i>
+                                <span>@category.Name</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="selection-info">
+                    <MudProgressLinear Color="Color.Secondary" Value="@((float)selectedCategories.Count / MinRequiredCategories * 100)" Class="my-4" />
+                    <span>@selectedCategories.Count / 5 realms selected</span>
+                </div>
+
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           Size="Size.Large"
+                           FullWidth="true"
+                           Disabled="@(!isRoomCreator || selectedCategories.Count < MinRequiredCategories)"
+                           OnClick="StartQuiz"
+                           Class="mt-4 start-button">
+                    Initiate Trivia Quiz
+                </MudButton>
+            </MudPaper>
+        </div>
+    </div>
+</MudLayout>
+
+<style>
+    .navbar-title {
+        font-weight: bold;
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+        animation: color-shift 8s infinite alternate, bounce 2s ease-in-out infinite;
+    }
+
+    .color-shift-text {
+        font-weight: bold;
+        font-size: 3rem;
+        letter-spacing: 2px;
+        animation: color-shift 8s infinite alternate, bounce 2s ease-in-out infinite;
+    }
+
+    .light-mode .color-shift-text {
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .dark-mode .color-shift-text {
+        text-shadow: 2px 2px 4px rgba(255,255,255,0.1);
+    }
+
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .category-card.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .bg-container {
+        background-size: cover;
+        background-position: center;
+        background-image: url('/images/walls.jpg');
+        background-attachment: fixed;
+        height: 100vh;
+        width: 100vw;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        transition: background-color 0.3s ease;
+    }
+
+    .blur-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .light-mode {
+        background-color: rgba(240, 240, 240, 0.7);
+        color: #333;
+    }
+
+    .dark-mode {
+        background-color: rgba(51, 51, 51, 0.7);
+        color: #f0f0f0;
+    }
+
+    .quiz-container {
+        text-align: center;
+        padding: 2rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .main-container {
+        border-radius: 16px;
+        max-width: 800px;
+        width: 90%;
+        margin: auto;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: float 6s ease-in-out infinite;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .light-mode .main-container {
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+
+    .dark-mode .main-container {
+        background-color: rgba(50, 50, 50, 0.9);
+    }
+
+    .subtitle {
+        font-size: 1.2rem;
+        color: inherit;
+        margin-bottom: 2rem;
+    }
+
+    .category-selector {
+        background-color: transparent;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .select-text {
+        color: inherit;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .category-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .neon-card {
+        background: transparent;
+        border-radius: 20px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease, color 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: float 6s ease-in-out infinite;
+        text-decoration: none;
+        display: block;
+    }
+
+    .light-mode .neon-card {
+        color: #333;
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .dark-mode .neon-card {
+        color: #f0f0f0;
+        background-color: rgba(60, 60, 60, 0.3);
+    }
+
+    .neon-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 0 20px rgba(255, 0, 222, 0.8), 0 0 40px rgba(255, 0, 222, 0.6), 0 0 60px rgba(255, 0, 222, 0.4);
+    }
+
+    .neon-card.selected {
+        background-color: rgba(33, 150, 243, 0.3);
+        border: 2px solid #2196f3;
+    }
+
+    .card-content {
+        position: relative;
+    }
+
+    .neon-card i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .selection-info {
+        color: inherit;
+        text-align: center;
+    }
+
+    .start-button {
+        background-color: #ff00de !important;
+        color: white !important;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+        .start-button:hover {
+            background-color: #d600ba !important;
+        }
+
+    @@keyframes color-shift {
+        0% {
+            color: #ff6b6b;
+        }
+
+        25% {
+            color: #4ecdc4;
+        }
+
+        50% {
+            color: #45b7d1;
+        }
+
+        75% {
+            color: #6ab04c;
+        }
+
+        100% {
+            color: #f9ca24;
+        }
+    }
+
+    @@keyframes bounce {
+        0%, 100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    @@keyframes float {
+        0% {
+            transform: translatey(0px);
+        }
+
+        50% {
+            transform: translatey(-20px);
+        }
+
+        100% {
+            transform: translatey(0px);
+        }
+    }
+</style>
+
+@code {
+    private string gamePin;
+    private bool isRoomCreator;
+    private HubConnection hubConnection;
+    private bool _isDarkMode = false;
+    private const int MinRequiredCategories = 3;
+    private const int TotalQuizQuestions = 15;
+    private HashSet<string> selectedCategories = new HashSet<string>();
+    private List<QuizCategory> categories = new List<QuizCategory>
+    {
+        new QuizCategory { Name = "Entertainment", Icon = "fas fa-atom" },
+        new QuizCategory { Name = "Sports", Icon = "fas fa-landmark" },
+        new QuizCategory { Name = "Technology", Icon = "fas fa-globe-americas" },
+        new QuizCategory { Name = "Art", Icon = "fas fa-palette" },
+        new QuizCategory { Name = "General Knowledge", Icon = "fas fa-brain" }
+    };
+
+   
+
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        gamePin = queryParams["gamePin"];
+        isRoomCreator = bool.Parse(queryParams["isRoomCreator"]);
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/roomHub"))
+            .Build();
+
+        hubConnection.On<HashSet<string>>("ReceiveCategoryUpdate", (categories) =>
+        {
+            selectedCategories = categories;
+            InvokeAsync(StateHasChanged);
+        });
+        hubConnection.On<string, string>("NavigateToQuiz", (categories, pin) =>
+     {
+     InvokeAsync(async () =>
+     {
+         try
+         {
+             await Task.Yield(); // Ensure we're on the UI thread
+             NavigationManager.NavigateTo($"/quizmultiple?categories={Uri.EscapeDataString(categories)}&gamePin={Uri.EscapeDataString(pin)}&isRoomCreator={isRoomCreator}");
+         }
+         catch (Exception ex)
+         {
+             Console.WriteLine($"Navigation error: {ex.Message}");
+             // Log the error and notify the user
+             await JS.InvokeVoidAsync("console.error", $"Navigation error: {ex.Message}");
+             await JS.InvokeVoidAsync("alert", $"An error occurred during navigation: {ex.Message}");
+         }
+     });
+     });
+
+        hubConnection.On("StartQuiz", async () =>
+        {
+            await StartQuiz();
+        });
+
+        await hubConnection.StartAsync();
+        await hubConnection.SendAsync("JoinRoom", gamePin);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadSelectedCategories();
+        }
+    }
+
+    private async Task ClearSelectedCategories()
+    {
+        await JSRuntime.InvokeVoidAsync("sessionStorage.removeItem", "selectedCategories");
+    }
+
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private async Task ToggleCategory(string name)
+    {
+        if (isRoomCreator)
+        {
+            if (selectedCategories.Contains(name))
+                selectedCategories.Remove(name);
+            else
+                selectedCategories.Add(name);
+
+            await hubConnection.SendAsync("UpdateCategories", gamePin, selectedCategories);
+            await SaveSelectedCategories();
+            StateHasChanged();
+        }
+
+    }
+
+
+    private async Task SaveSelectedCategories()
+    {
+        await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", "selectedCategories",
+            System.Text.Json.JsonSerializer.Serialize(selectedCategories));
+    }
+
+    private async Task LoadSelectedCategories()
+    {
+        var storedCategories = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "selectedCategories");
+        if (!string.IsNullOrEmpty(storedCategories))
+        {
+            selectedCategories = System.Text.Json.JsonSerializer.Deserialize<HashSet<string>>(storedCategories);
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task StartQuiz()
+    {
+        if (selectedCategories.Count >= MinRequiredCategories && isRoomCreator)
+        {
+            try
+            {
+                var quizQuestions = await QuestionService.GetQuestionsByCategoriesForRoomAsync(selectedCategories.ToList(), TotalQuizQuestions, gamePin);
+
+                if (quizQuestions.Count == 0)
+                {
+                    Console.WriteLine("No questions available for the selected categories.");
+                    return;
+                }
+
+                if (quizQuestions.Count < TotalQuizQuestions)
+                {
+                    Console.WriteLine($"Warning: Only {quizQuestions.Count} questions available for the selected categories.");
+                }
+
+                // Store the questions in the QuestionService
+                await QuestionService.StoreQuestionsForRoom(gamePin, quizQuestions);
+
+                string categories = string.Join(",", selectedCategories);
+
+                // Send a message to all clients to start the quiz
+                await hubConnection.SendAsync("StartQuiz", gamePin, categories);
+
+                // The navigation will be handled by the "NavigateToQuiz" handler for all clients
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error starting quiz: {ex.Message}");
+            }
+        }
+    }
+
+
+
+    private class QuizCategory
+    {
+        public string Name { get; set; }
+        public string Icon { get; set; }
+    }
+
+}

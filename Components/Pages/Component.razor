@@ -1,0 +1,227 @@
+﻿@page "/component"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" />
+<MudLayout Class="@(_isDarkMode ? "dark-mode" : "light-mode")">
+    <MudAppBar>
+        <MudText Typo="Typo.h2" Class="color-shift-text">HUEQUIZZ</MudText>
+        <MudSpacer />
+        <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                             Icon="@Icons.Material.Filled.LightMode"
+                             ToggledIcon="@Icons.Material.Filled.DarkMode"
+                             Color="Color.Inherit"
+                             EdgePosition="EdgePosition.End"
+                             ToggledColor="@Color.Inherit"
+                             @onclick="ToggleTheme" />
+    </MudAppBar>
+
+
+    <div class="bg-container">
+        <div class="blur-overlay"></div>
+        <div class="quiz-container main-container">
+            <h1 class="title color-shift-text">HueQuizz</h1>
+            <p class="subtitle">Expand your horizons, one question at a time</p>
+            
+            <div class="cards-container">
+                <a href="/category" class="card neon-card">
+                    <div class="card-content">
+                        <h2>Solo Adventure</h2>
+                        <p>Embark on a journey of knowledge</p>
+                        <div class="icon">→</div>
+                    </div>
+                </a>
+                <a href="/RoomManagement" class="card neon-card">
+                    <div class="card-content">
+                        <h2>Multiplayer Challenge</h2>
+                        <p>Test your skills against others</p>
+                        <div class="icon">→</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</MudLayout>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .bg-container {
+        background-size: cover;
+        background-position: center;
+        background-image: url('/images/walls.jpg');
+        background-attachment: fixed;
+        height: 100vh;
+        width: 100vw;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        transition: background-color 0.3s ease;
+    }
+
+    .blur-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .quiz-container {
+        text-align: center;
+        padding: 2rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .main-container {
+        border-radius: 16px;
+        max-width: 800px;
+        width: 90%;
+        margin: auto;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: float 6s ease-in-out infinite;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .color-shift-text {
+        font-weight: bold;
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+        animation: color-shift 8s infinite alternate, bounce 2s ease-in-out infinite;
+    }
+
+    .subtitle {
+        font-size: 1.2rem;
+        color: inherit;
+        margin-bottom: 3rem;
+    }
+
+    .cards-container {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+    }
+
+    .neon-card {
+        background: transparent;
+        border-radius: 20px;
+        padding: 2rem;
+        width: 250px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: float 6s ease-in-out infinite;
+        text-decoration: none;
+        display: block;
+        color: inherit;
+    }
+
+    .neon-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 0 20px rgba(255, 0, 222, 0.8), 0 0 40px rgba(255, 0, 222, 0.6), 0 0 60px rgba(255, 0, 222, 0.4);
+    }
+
+    .card-content {
+        position: relative;
+    }
+
+    .neon-card h2 {
+        margin-bottom: 0.5rem;
+    }
+
+    .neon-card p {
+        margin-bottom: 2rem;
+    }
+
+    .icon {
+        position: absolute;
+        bottom: -20px;
+        right: 0;
+        font-size: 2rem;
+        color: #ff00de;
+        transition: transform 0.3s ease;
+    }
+
+    .neon-card:hover .icon {
+        transform: translateX(10px);
+    }
+
+    .light-mode .color-shift-text {
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .dark-mode .color-shift-text {
+        text-shadow: 2px 2px 4px rgba(255,255,255,0.1);
+    }
+
+    .light-mode .bg-container {
+        background-color: #f0f0f0;
+        color: #333;
+    }
+
+    .dark-mode .bg-container {
+        background-color: #333;
+        color: #f0f0f0;
+    }
+
+    .light-mode .main-container {
+        background-color: rgba(255, 255, 255, 0.8);
+        color: #333;
+    }
+
+    .dark-mode .main-container {
+        background-color: rgba(50, 50, 50, 0.8);
+        color: #f0f0f0;
+    }
+
+    @@keyframes color-shift {
+        0% { color: #ff6b6b; }
+        25% { color: #4ecdc4; }
+        50% { color: #45b7d1; }
+        75% { color: #6ab04c; }
+        100% { color: #f9ca24; }
+    }
+
+    @@keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+
+    @@keyframes float {
+        0% { transform: translatey(0px); }
+        50% { transform: translatey(-20px); }
+        100% { transform: translatey(0px); }
+    }
+</style>
+
+@code {
+    private bool _isDarkMode = false;
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private void StartSinglePlayer()
+    {
+        NavigationManager.NavigateTo("/category");
+    }
+
+    private void StartMultiPlayer()
+    {
+        NavigationManager.NavigateTo("/categorymultiple");
+    }
+}

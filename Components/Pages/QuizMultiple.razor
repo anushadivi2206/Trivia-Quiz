@@ -1,0 +1,1217 @@
+﻿@page "/quizmultiple"
+@inject NavigationManager NavigationManager
+@inject QuestionService QuestionService
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IDisposable
+@rendermode InteractiveServer
+@inject LeaderboardService LeaderboardService
+@using Combination.Services
+
+<style>
+    .pagination {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    .pagination-button {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.3);
+        margin: 0 5px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+        .pagination-button.active {
+            background-color: #ff00de;
+            transform: scale(1.2);
+            box-shadow: 0 0 15px rgba(255, 0, 222, 0.7);
+        }
+
+        .pagination-button.answered {
+            background-color: #00ff9d;
+        }
+
+    .dark-mode .pagination-button {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+        .dark-mode .pagination-button.active {
+            background-color: #ff00de;
+        }
+
+        .dark-mode .pagination-button.answered {
+            background-color: #00ff9d;
+        }
+
+
+
+
+
+
+    .quiz-progress {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 30px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .progress-item {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        z-index: 2;
+    }
+
+        .progress-item::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 100%;
+            width: calc(100% - 30px);
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-50%);
+        }
+
+        .progress-item:first-child::before {
+            display: none;
+        }
+
+        .progress-item.active {
+            background: #ff00de;
+            transform: scale(1.2);
+            box-shadow: 0 0 15px rgba(255, 0, 222, 0.7);
+        }
+
+        .progress-item.answered {
+            background: #00ff9d;
+        }
+
+            .progress-item.active ~ .progress-item::before,
+            .progress-item.answered::before,
+            .progress-item.answered ~ .progress-item::before {
+                background: #00ff9d;
+            }
+
+    .progress-number {
+        color: #fff;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .progress-tooltip {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+
+    .progress-item:hover .progress-tooltip {
+        opacity: 1;
+    }
+
+    .dark-mode .quiz-progress {
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .dark-mode .progress-item {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+        .dark-mode .progress-item::before {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+    @@media (max-width: 768px) {
+        .quiz-progress {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .progress-item {
+            margin: 5px;
+        }
+
+            .progress-item::before {
+                display: none;
+            }
+    }
+
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .wrong-answer-indication {
+        background-color: rgba(255, 0, 0, 0.2);
+        color: #cc0000;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.5s;
+    }
+
+        .wrong-answer-indication i {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+    .navbar {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 10px 20px;
+        background-color: #4a0e78;
+        color: white;
+    }
+
+    .navbar-title {
+        margin: 0;
+        font-size: 1.5rem;
+        background: linear-gradient(45deg, #ff00de, #00ff9d);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .bg-container {
+        background-image: url('/images/walls.jpg');
+        background-size: cover;
+        background-position: center;
+        min-height: calc(100vh - 60px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .blur-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        backdrop-filter: blur(8px);
+    }
+
+    .quiz-container {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 600px;
+        width: 100%;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        position: relative;
+        z-index: 1;
+    }
+
+    .dark-mode .quiz-container {
+        background-color: rgba(30, 30, 30, 0.9);
+        color: #ffffff;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .title {
+        font-size: 2.5rem;
+        margin: 0;
+        background: linear-gradient(45deg, #ff00de, #00ff9d);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .theme-toggle {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+    }
+
+    .subtitle {
+        font-size: 1.2rem;
+        margin-bottom: 20px;
+    }
+
+    .question-text {
+        font-size: 1.3rem;
+        margin-bottom: 20px;
+    }
+
+    .info-display {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .timer, .score {
+        font-size: 1rem;
+    }
+
+    .options-container {
+        display: grid;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .option-label {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .dark-mode .option-label {
+        background-color: #2c2c2c;
+    }
+
+    .option-label:hover {
+        background-color: rgba(255, 0, 222, 0.1);
+    }
+
+    .dark-mode .option-label:hover {
+        background-color: rgba(255, 0, 222, 0.2);
+    }
+
+    .option-label input {
+        margin-right: 10px;
+    }
+
+    .selected-answer {
+        background-color: rgba(255, 0, 222, 0.2);
+    }
+
+    .dark-mode .selected-answer {
+        background-color: rgba(255, 0, 222, 0.3);
+    }
+
+    .button-container {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .quiz-button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 1rem;
+        background-color: #4a4a4a;
+        color: white;
+    }
+
+        .quiz-button:hover:not(:disabled) {
+            background-color: #ff00de;
+        }
+
+        .quiz-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+    .submit-button {
+        background-color: #00ff9d;
+        color: black;
+    }
+
+        .submit-button:hover:not(:disabled) {
+            background-color: #00cc7d;
+        }
+
+    .times-up-message {
+        color: #ff0000;
+        font-weight: bold;
+        animation: blink 0.5s infinite;
+        margin-bottom: 20px;
+    }
+
+    .quiz-over, .quiz-summary {
+        font-size: 2rem;
+        margin-bottom: 20px;
+        color: #ff00de;
+    }
+
+    .final-score {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+    }
+
+    .results-container {
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+    }
+
+    .result-card {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+
+    .dark-mode .result-card {
+        background-color: rgba(0, 0, 0, 0.2);
+    }
+
+    .result-correct {
+        color: #00ff9d;
+    }
+
+    .disabled-answer {
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
+    .result-incorrect {
+        color: #ff0000;
+    }
+
+    .exit-button {
+        background-color: #ff0000;
+    }
+
+        .exit-button:hover {
+            background-color: #cc0000;
+        }
+
+    @@keyframes blink {
+        0% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0;
+        }
+
+        100% {
+            opacity: 1;
+        }
+    }
+
+    .color-shift-text {
+        font-weight: bold;
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+        animation: color-shift 8s infinite alternate, bounce 2s ease-in-out infinite;
+    }
+
+    @@keyframes color-shift {
+        0% {
+            color: #ff6b6b;
+        }
+
+        25% {
+            color: #4ecdc4;
+        }
+
+        50% {
+            color: #45b7d1;
+        }
+
+        75% {
+            color: #6ab04c;
+        }
+
+        100% {
+            color: #f9ca24;
+        }
+    }
+
+    .score-popup {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: rgba(255, 215, 0, 0.8);
+        padding: 10px 20px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        z-index: 999;
+        animation: fadeIn 0.5s;
+    }
+
+    .score-popup-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+
+        .score-popup-content i {
+            margin-right: 10px;
+            color: #ffd700;
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    @@keyframes bounce {
+        0%, 100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    .light-mode .color-shift-text {
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .dark-mode .color-shift-text {
+        text-shadow: 2px 2px 4px rgba(255,255,255,0.1);
+    }
+
+    .correct-answer-indication {
+        background-color: rgba(0, 255, 0, 0.2);
+        color: #00cc00;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.5s;
+    }
+
+        .correct-answer-indication i {
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+    .reward-container {
+        background-color: rgba(255, 215, 0, 0.2);
+        border: 2px solid gold;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+        .reward-container h3 {
+            color: gold;
+            margin-bottom: 10px;
+        }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    .leaderboard-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+        .leaderboard-table th, .leaderboard-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .leaderboard-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .leaderboard-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .leaderboard-table tr:hover {
+            background-color: #f5f5f5;
+        }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        margin-top: 20px;
+    }
+
+    .pagination-button {
+        margin: 0 5px;
+        padding: 5px 10px;
+        border: 1px solid #ccc;
+        background-color: #f0f0f0;
+        cursor: pointer;
+    }
+
+        .pagination-button.active {
+            background-color: #4a0e78;
+            color: white;
+        }
+</style>
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" />
+<MudLayout Class="@(_isDarkMode ? "dark-mode" : "light-mode")">
+    <MudAppBar>
+        <MudText Typo="Typo.h2" Class="color-shift-text">HUEQUIZZ</MudText>
+        <MudSpacer />
+        <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                             Icon="@Icons.Material.Filled.LightMode"
+                             ToggledIcon="@Icons.Material.Filled.DarkMode"
+                             Color="Color.Inherit"
+                             EdgePosition="EdgePosition.End"
+                             ToggledColor="@Color.Inherit"
+                             @onclick="ToggleTheme" />
+    </MudAppBar>
+    <div class="bg-container">
+        <div class="blur-overlay"></div>
+        <div class="quiz-container main-container">
+            @if (!isQuizOver && !showingResults)
+            {
+                @if (questions == null || questions.Count == 0)
+                {
+                    <p class="message">No questions available. Please try again later.</p>
+                }
+                else
+                {
+                    <p class="subtitle">Question @(currentQuestionIndex + 1) of @questions.Count</p>
+
+                    <div class="question-text">@questions[currentQuestionIndex].Text</div>
+                    <div class="info-display">
+                        <span class="timer">Time left: @questions[currentQuestionIndex].TimeLeft seconds</span>
+                        <span class="score">Current Score: @playerScore</span>
+                    </div>
+
+                    @if (questions[currentQuestionIndex].ShowTimesUpMessage)
+                    {
+                        <div class="times-up-message">Time's Up!</div>
+                    }
+
+
+
+
+                    @if (questions != null && questions.Count > currentQuestionIndex)
+                    {
+                        <div class="options-container">
+                            @foreach (var option in questions[currentQuestionIndex].Options)
+                            {
+                                <label class="option-label @GetAnswerClass(option)">
+                                    <input type="radio" name="answer" value="@option"
+                                           checked="@(selectedAnswer == option)"
+                                           @onchange="@((ChangeEventArgs e) => OnAnswerSelected(e.Value.ToString()))"
+                                           disabled="@IsAnswerDisabled()" />
+                                    <span class="option-text">@option</span>
+                                </label>
+                            }
+                        </div>
+                    }
+
+                    @if (showCorrectAnswerIndication)
+                    {
+                        <div class="correct-answer-indication">
+                            <i class="fas fa-check-circle"></i> Correct! Great job🤩🎉🎆
+                        </div>
+                    }
+                    @if (showWrongAnswerIndication)
+                    {
+                        <div class="wrong-answer-indication">
+                            <i class="fas fa-times-circle"></i> Oops! That's incorrect 😕 Keep trying, you've got this! 💪
+                        </div>
+                    }
+
+                    <div class="button-container">
+                        <button class="quiz-button submit-button" @onclick="SubmitAnswer" disabled="@IsSubmitDisabled()">
+                            Submit Answer
+                        </button>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination">
+                        @for (int i = 0; i < questions.Count; i++)
+                        {
+                            int index = i;
+                            <button class="pagination-button @(index == currentQuestionIndex ? "active" : "") @(questions[i].IsAnswered ? "answered" : "")"
+                                    @onclick="() => NavigateToQuestion(index)">
+                            </button>
+                        }
+                    </div>
+                }
+            }
+            else if (isQuizOver && !showingResults)
+            {
+                <h2 class="quiz-over">Quiz Over!</h2>
+                <p class="final-score">Final Score: @playerScore</p>
+                <div class="reward-container">
+                    <h3>Your Reward:</h3>
+                    <p>@GetRewardMessage()</p>
+                </div>
+
+
+            }
+            else if (showingResults)
+            {
+                <h2 class="quiz-summary">Quiz Summary</h2>
+                <p class="final-score">Final Score: @playerScore / @(questions.Count * 10)</p>
+
+                <div class="results-container">
+                    @for (int i = 0; i < questions.Count; i++)
+                    {
+                        var question = questions[i];
+                        <div class="result-card">
+                            <h3>Question @(i + 1)</h3>
+                            <p>@question.Text</p>
+                            <p>Your Answer: @(question.IsSubmitted ? (string.IsNullOrEmpty(question.SelectedAnswer) ? "Not answered" : question.SelectedAnswer) : "Not answered")</p>
+                            <p>Correct Answer: @question.CorrectAnswer</p>
+                            <p>Time Left: @question.TimeLeft seconds</p>
+                            @if (question.SelectedAnswer == question.CorrectAnswer)
+                            {
+                                <p class="result-correct">Correct (+10 points)</p>
+                            }
+                            else
+                            {
+                                <p class="result-incorrect">Incorrect (-5 points)</p>
+                            }
+                        </div>
+                    }
+                </div>
+
+
+                <button class="quiz-button exit-button" @onclick="@(() => NavigationManager.NavigateTo("/"))">
+                    Exit Quiz
+                </button>
+            }
+        </div>
+    </div>
+
+
+
+</MudLayout>
+
+
+@code {
+    private string gamePin;
+    public HubConnection hubConnection;
+    private const int MinRequiredCategories = 3;
+    private const int TotalQuizQuestions = 7;
+    private bool isRoomCreator;
+    private string playerName = "";
+    private bool _isDarkMode = false;
+    private int currentQuestionIndex = 0;
+    private List<Question1> questions = new List<Question1>();
+    private System.Timers.Timer timer;
+    private bool isQuizOver = false;
+    private bool showingResults = false;
+    private const int originalTimeLeft = 30;
+    private Dictionary<System.Timers.Timer, Question1> timerQuestionMap = new Dictionary<System.Timers.Timer, Question1>();
+    private bool showTimesUpMessage = false;
+    private bool showCorrectAnswerIndication = false;
+    private bool showWrongAnswerIndication = false;
+    private int playerScore = 0;
+    private string selectedAnswer;
+
+
+
+    private void SaveScore()
+    {
+        if (!string.IsNullOrWhiteSpace(playerName))
+        {
+            LeaderboardService.AddScore(playerName, CalculateCurrentScore());
+            showingResults = true;
+            StateHasChanged();
+        }
+    }
+
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+      .WithUrl(NavigationManager.ToAbsoluteUri("/quizhub"))
+      .Build();
+
+        await hubConnection.StartAsync();
+
+        playerName = "Player";
+        playerScore = 0;
+        var uri = new Uri(NavigationManager.Uri);
+        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        gamePin = queryParams["gamePin"];
+        isRoomCreator = bool.Parse(queryParams["isRoomCreator"]);
+
+
+
+        await hubConnection.SendAsync("JoinRoom", gamePin);
+
+        hubConnection.On<int>("NavigateToQuestion", (questionIndex) =>
+        {
+            NavigateToQuestion(questionIndex);
+            InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<int, string>("AnswerSelected", (questionIndex, answeringPlayer) =>
+      {
+          if (questionIndex == currentQuestionIndex && answeringPlayer != playerName)
+          {
+              questions[questionIndex].AnswerSelected = true;
+              questions[questionIndex].AnsweringPlayer = answeringPlayer;
+              InvokeAsync(StateHasChanged);
+          }
+      });
+
+
+
+        hubConnection.On<int>("NavigateToQuestion", async (questionIndex) =>
+    {
+        await InvokeAsync(() =>
+        {
+            if (questionIndex == -1)
+            {
+                EndQuiz();
+            }
+            else
+            {
+                NavigateToQuestion(questionIndex);
+            }
+            StateHasChanged();
+        });
+    });
+
+        hubConnection.On<int>("UpdateScore", (score) =>
+       {
+           Console.WriteLine($"Received score update: {score}");
+           playerScore = score;
+           InvokeAsync(StateHasChanged);
+       });
+
+
+
+
+        try
+        {
+            questions = QuestionService.GetQuestionsForRoom(gamePin);
+            if (questions == null || questions.Count == 0)
+            {
+                throw new Exception("No questions retrieved for this room.");
+            }
+
+
+            currentQuestionIndex = 0;
+            isQuizOver = false;
+            showingResults = false;
+
+
+
+            foreach (var question in questions)
+            {
+                question.SelectedAnswer = null;
+                question.TimeLeft = originalTimeLeft;
+                question.IsAnswered = false;
+                question.IsSubmitted = false;
+                question.ShowTimesUpMessage = false;
+
+                var timer = new System.Timers.Timer(1000);
+                timer.Elapsed += TimerElapsed;
+                timer.AutoReset = true;
+
+                timerQuestionMap[timer] = question;
+            }
+
+            StartCurrentQuestionTimer();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing quiz: {ex.Message}");
+            // Handle the error appropriately (e.g., show an error message to the user)
+        }
+    }
+
+
+
+
+    private void ShowTimesUp()
+    {
+        showTimesUpMessage = true;
+        StateHasChanged();
+    }
+
+    private void HideTimesUp()
+    {
+        showTimesUpMessage = false;
+        StateHasChanged();
+    }
+
+    private void NavigateToQuestion(int index)
+    {
+        if (index == -1)
+        {
+            EndQuiz();
+            return;
+        }
+
+        if (index != currentQuestionIndex && index >= 0 && index < questions.Count)
+        {
+            StopCurrentTimer();
+            currentQuestionIndex = index;
+            StartCurrentQuestionTimer();
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+
+    private void StartCurrentQuestionTimer()
+    {
+        var currentQuestion = questions[currentQuestionIndex];
+        if (!currentQuestion.IsAnswered && !currentQuestion.IsSubmitted)
+        {
+            var timer = timerQuestionMap.FirstOrDefault(x => x.Value == currentQuestion).Key;
+            if (timer != null)
+            {
+                timer.Start();
+            }
+        }
+    }
+    private async Task OnAnswerSelected(string selectedValue)
+    {
+        selectedAnswer = selectedValue;
+        var currentQuestion = questions[currentQuestionIndex];
+        if (!currentQuestion.IsSubmitted)
+        {
+            currentQuestion.SelectedAnswer = selectedValue;
+            currentQuestion.AnswerSelected = true;
+            await hubConnection.SendAsync("AnswerSelected", gamePin, currentQuestionIndex, playerName);
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StartQuiz()
+    {
+        try
+        {
+            // Get questions for the room
+            questions = QuestionService.GetQuestionsForRoom(gamePin);
+
+            if (questions == null || questions.Count == 0)
+            {
+                throw new Exception("No questions available for this quiz.");
+            }
+
+            // Initialize quiz variables
+            currentQuestionIndex = 0;
+            isQuizOver = false;
+            showingResults = false;
+
+            // Reset each question
+            foreach (var question in questions)
+            {
+                question.SelectedAnswer = null;
+                question.TimeLeft = originalTimeLeft;
+                question.IsAnswered = false;
+                question.IsSubmitted = false;
+                question.ShowTimesUpMessage = false;
+                question.Score = 0; // Reset the score
+
+                var timer = new System.Timers.Timer(1000);
+                timer.Elapsed += TimerElapsed;
+                timer.AutoReset = true;
+
+                timerQuestionMap[timer] = question;
+            }
+
+            // Start the timer for the first question
+            StartCurrentQuestionTimer();
+
+            // Update the UI
+            InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting quiz: {ex.Message}");
+            // You might want to display an error message to the user here
+        }
+    }
+
+
+    private async Task SubmitAnswer()
+    {
+
+        var currentQuestion = questions[currentQuestionIndex];
+        if (!currentQuestion.IsSubmitted)
+        {
+            currentQuestion.IsSubmitted = true;
+            StopCurrentTimer();
+
+            currentQuestion.PlayerAnswers[playerName] = currentQuestion.SelectedAnswer;
+            bool isCorrect = currentQuestion.SelectedAnswer == currentQuestion.CorrectAnswer;
+            currentQuestion.PlayerCorrectness[playerName] = isCorrect;
+
+
+            if (isCorrect)
+            {
+                showCorrectAnswerIndication = true;
+                showWrongAnswerIndication = false;
+                playerScore += 10;
+
+            }
+            else
+            {
+                showCorrectAnswerIndication = false;
+                showWrongAnswerIndication = true;
+                playerScore -= 5;
+                currentQuestion.Score = -5;
+            }
+
+            StateHasChanged();
+
+            await Task.Delay(2000);
+
+            // Reset the answer indications
+            showCorrectAnswerIndication = false;
+            showWrongAnswerIndication = false;
+
+
+
+
+            if (currentQuestionIndex < questions.Count - 1)
+            {
+                await hubConnection.SendAsync("BroadcastQuestionNavigation", gamePin, currentQuestionIndex + 1);
+            }
+            else
+            {
+                await hubConnection.SendAsync("BroadcastQuestionNavigation", gamePin, -1); // Signal end of quiz
+            }
+
+
+        }
+    }
+
+    private async Task NextQuestion()
+    {
+        questions[currentQuestionIndex].ShowTimesUpMessage = false;
+        StopCurrentTimer();
+        if (currentQuestionIndex < questions.Count - 1)
+        {
+            currentQuestionIndex++;
+            StartCurrentQuestionTimer();
+        }
+        else
+        {
+            EndQuiz();
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void PreviousQuestion()
+    {
+        questions[currentQuestionIndex].ShowTimesUpMessage = false;
+        StopCurrentTimer();
+        if (currentQuestionIndex > 0)
+        {
+            currentQuestionIndex--;
+            StartCurrentQuestionTimer();
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void StopCurrentTimer()
+    {
+        var currentQuestion = questions[currentQuestionIndex];
+        var timer = timerQuestionMap.FirstOrDefault(x => x.Value == currentQuestion).Key;
+        timer?.Stop();
+    }
+
+    private void StartTimer()
+    {
+        if (timer == null)
+        {
+            timer = new System.Timers.Timer(1000);
+            timer.Elapsed += TimerElapsed;
+            timer.AutoReset = true;
+        }
+        timer.Start();
+    }
+
+    private void StopTimer()
+    {
+        if (timer != null)
+        {
+            timer.Stop();
+        }
+    }
+
+    private async void TimerElapsed(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (sender is System.Timers.Timer timer && timerQuestionMap.TryGetValue(timer, out var question))
+        {
+            await InvokeAsync(async () =>
+            {
+                if (question.TimeLeft > 0 && !question.IsSubmitted)
+                {
+                    question.TimeLeft--;
+                    if (question.TimeLeft <= 0)
+                    {
+                        timer.Stop();
+                        question.IsAnswered = true;
+                        question.IsSubmitted = true;
+                        question.SelectedAnswer = null;
+                        question.ShowTimesUpMessage = true;
+                        question.Score = 0;
+
+                        StateHasChanged();
+
+                        // Broadcast navigation event to all clients in the room
+                        await Task.Delay(3000);
+                        if (currentQuestionIndex < questions.Count - 1)
+                        {
+                            await hubConnection.SendAsync("BroadcastQuestionNavigation", gamePin, currentQuestionIndex + 1);
+                        }
+                        else
+                        {
+                            await hubConnection.SendAsync("BroadcastQuestionNavigation", gamePin, -1); // Signal end of quiz
+                        }
+                    }
+                    StateHasChanged();
+                }
+            });
+        }
+    }
+
+
+    private void EndQuiz()
+    {
+        StopTimer();
+        isQuizOver = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ShowResults()
+    {
+        showingResults = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+
+
+    public void Dispose()
+    {
+        foreach (var timer in timerQuestionMap.Keys)
+        {
+            timer.Stop();
+            timer.Elapsed -= TimerElapsed;
+            timer.Dispose();
+        }
+        timerQuestionMap.Clear();
+    }
+
+    private string GetAnswerClass(string option)
+    {
+        var currentQuestion = questions[currentQuestionIndex];
+        if (currentQuestion.SelectedAnswer == option && playerName == currentQuestion.AnsweringPlayer)
+        {
+            return "selected-answer neon-card";
+        }
+        return "neon-card";
+    }
+
+    private int CalculateCurrentScore()
+    {
+        return questions.Sum(q => q.IsSubmitted ? (q.AnsweredCorrectly ? 10 : -5) : 0);
+    }
+
+    private bool IsAnswerDisabled()
+    {
+        var currentQuestion = questions[currentQuestionIndex];
+        return currentQuestion.IsAnswered || currentQuestion.TimeLeft <= 0 ||
+               (currentQuestion.AnswerSelected && currentQuestion.AnsweringPlayer != playerName);
+    }
+    private bool IsSubmitDisabled()
+    {
+        var currentQuestion = questions[currentQuestionIndex];
+        return string.IsNullOrEmpty(currentQuestion.SelectedAnswer) ||
+               currentQuestion.IsSubmitted ||
+               currentQuestion.TimeLeft <= 0;
+    }
+
+
+    private string GetRewardMessage()
+    {
+        int score = playerScore;
+
+
+        if (score <= 0)
+        {
+            return "🎈 Don't be discouraged! Every mistake is a chance to learn. Keep practicing!";
+        }
+        else if (score >= 60)
+        {
+            return "🏆 Perfect Score! You've earned a Gold Medal and a virtual high-five! 🖐";
+        }
+        else if (score >= 50 && score < 60)
+        {
+            return "🥈 Excellent work! You've earned a Silver Medal and a round of applause! 👏";
+        }
+        else if (score >= 40 && score < 50)
+        {
+            return "🥉 Good job! You've earned a Bronze Medal and a pat on the back! 🤝";
+        }
+        else if (score >= 20 && score < 40)
+        {
+            return "🌟 Nice effort! You've earned a Star and some words of encouragement!";
+        }
+        else
+        {
+            return "🎈 Thanks for playing! Every attempt is a step towards improvement. Keep it up!";
+        }
+    }
+}
